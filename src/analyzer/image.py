@@ -1,6 +1,8 @@
 import cv2
 import numpy as np
-
+import pyocr
+import pyocr.builders
+from collections.abc import Iterable
 
 def generate_allzero_uint8_nparr(width: int, height: int):
     result = []
@@ -96,3 +98,123 @@ def detect_imdiff_by_bgrvalue(
                     )
 
     return np.array(result_diff_img_bgr, dtype="uint8"), result_details
+
+
+# https://blog.machine-powers.net/2018/08/04/pyocr-and-tips/
+class OcrTextExtractor:
+    tool = None
+    builder = None
+    language = ""
+
+    def __init__(
+        self,
+        tesseractPath: str,
+    ):
+        pyocr.tesseract.TESSERACT_CMD = tesseractPath
+        tools = pyocr.get_available_tools()
+
+        if len(tools) == 0:
+            raise Exception("ERROR: No OCR tool found")
+
+        self.tool = tools[0]
+
+    # setting languages
+    def use_japanese_lang(self):
+        self.language = "jpn"
+        return self
+
+    def use_english_lang(self):
+        self.language = "eng"
+        return self
+
+    # Setting builders
+    def use_word_box_builder(self):
+        self.builder = pyocr.builders.WordBoxBuilder()
+        return self
+
+    def use_linebox_builder(self):
+        self.builder = pyocr.builders.LineBoxBuilder()
+        return self
+
+    def write_extracted_result_as_hOCR_fmt(self, filepath, result):
+        with open(filepath, "w", encoding="utf-8") as f:
+            self.builder.write_file(f, result)
+
+    # pyocrではpilowのImageオブジェクトを使用する
+    # https://note.com/djangonotes/n/ne993a087f678
+    def extract(self, pil_image):
+        return self.tool.image_to_string(
+            pil_image, lang=self.language, builder=self.builder
+        )
+
+
+# Pyocr official README.md (gitlab) を参照に，builderの生成結果のオブジェクトを解析する
+# https://gitlab.gnome.org/World/OpenPaperwork/pyocr
+class Img2StrResultParser:
+    # Linebox object: list of line objects. For each line object:
+    #
+    #   line.word_boxes is a list of word boxes (the individual words in the line)
+    #   line.content is the whole text of the line
+    #   line.position is the position of the whole line on the page (in pixels)
+    #
+    # print(pyocr.builders.LineBox)
+    # >>>
+    # [
+    #   so 131 190 147 200
+    #   that 154 186 183 200
+    #   producing 190 186 269 204
+    #   50k 276 185 305 200
+    #   samples 312 186 375 204
+    #   takes 382 186 421 200
+    #   approximately 429 185 542 204
+    #   5 550 186 557 200
+    #   days 565 186 600 204
+    # ] 131 185 600 204
+    #
+    # formats:
+    # - wordbased_fmt : list
+    # - lineboxbased_fmt : list
+    #
+    @staticmethod
+    def convert_linebox_iterable_into_wordbased_fmt(
+        lineboxObjectIterable: Iterable[pyocr.builders.LineBox],
+    ):
+        jsonSrc = []
+        for lineboxObject in lineboxObjectIterable:
+            jsonSrc.append(
+                {
+                    "linePosition": lineboxObject.position,
+                    "wordBoxes": list(
+                        map(
+                            lambda box: [
+                                box.content,
+                                box.position[0][0],
+                                box.position[0][1],
+                                box.position[1][0],
+                                box.position[1][1],
+                            ],
+                            lineboxObject.word_boxes,
+                        )
+                    ),
+                }
+            )
+        return jsonSrc
+
+    @staticmethod
+    def convert_linebox_iterable_into_linebased_fmt(
+        lineboxObjectIterable: Iterable[pyocr.builders.LineBox],
+    ):
+        result = []
+        for lineboxObject in lineboxObjectIterable:
+            result.append(
+                {
+                    "linePosition": lineboxObject.position,
+                    "content": " ".join(
+                        map(
+                            lambda wordbox: wordbox.content,
+                            lineboxObject.word_boxes,
+                        )
+                    ),
+                }
+            )
+        return result

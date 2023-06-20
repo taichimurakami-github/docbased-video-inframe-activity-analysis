@@ -1,5 +1,5 @@
 import cv2
-
+from PIL import Image
 
 class CV2ImageUtil:
     def load(self, file_path):
@@ -13,6 +13,9 @@ class CV2ImageUtil:
 
     def apply_bgr2hsv(self, cv2img: cv2.Mat):
         return cv2.cvtColor(cv2img, cv2.COLOR_BGR2HSV)
+
+    def apply_bgr2rgb(self, cv2img: cv2.Mat):
+        return cv2.cvtColor(cv2img, cv2.COLOR_BGR2RGB)
 
     def apply_hsv2bgr(self, cv2img: cv2.Mat):
         return cv2.cvtColor(cv2img, cv2.COLOR_HSV2BGR)
@@ -30,6 +33,11 @@ class CV2ImageUtil:
     ):
         clahe = cv2.createCLAHE(clipLimit, tileGridSize)
         return clahe.apply(cv2img)
+
+    # OpenCV.Image --> PIL.Image
+    # グレースケール，rgbもしくはrgbaのいずれかのfmtのみOK．
+    def cvt_to_pil_img(self, cv2img_rgb):
+      return Image.fromarray(cv2img_rgb.copy())
 
     def get_absdiff(self, cv2img1: cv2.Mat, cv2img2: cv2.Mat):
         return cv2.absdiff(cv2img1, cv2img2)
