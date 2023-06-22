@@ -1,12 +1,13 @@
 import os
 import json
-import pprint
+from pprint import pprint
 import Levenshtein
 import difflib
 from pathlib import Path
 from enum import Enum, auto
 
 from .image import OcrTextExtractor
+
 
 class MATCHING_METHOD(Enum):
     PATTERN_MATCH = auto()
@@ -25,7 +26,6 @@ class MatchingEngine:
     def __init__(self, lineboxbased_fmt_base_json_path: str):
         with open(lineboxbased_fmt_base_json_path, "r") as f:
             self._base_LBbased_fmt = json.load(f)
-            pprint.pprint(self._base_LBbased_fmt)
 
     def __perform_pattern_match(self, text1: str, text2: str):
         return text1 == text2
@@ -58,6 +58,9 @@ class MatchingEngine:
                 if text1_word == text2_word:
                     equal_flag = 1
             equal_count = equal_count + equal_flag
+
+        if total_check_count <= 0:
+            return 0
 
         return equal_count / total_check_count
 

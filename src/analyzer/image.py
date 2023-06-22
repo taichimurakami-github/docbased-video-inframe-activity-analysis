@@ -4,6 +4,7 @@ import pyocr
 import pyocr.builders
 from collections.abc import Iterable
 
+
 def generate_allzero_uint8_nparr(width: int, height: int):
     result = []
     for i_col in range(height):
@@ -148,12 +149,17 @@ class OcrTextExtractor:
         )
 
 
-# Pyocr official README.md (gitlab) を参照に，builderの生成結果のオブジェクトを解析する
 # https://gitlab.gnome.org/World/OpenPaperwork/pyocr
 class Img2StrResultParser:
     # Linebox object: list of line objects. For each line object:
     #
     #   line.word_boxes is a list of word boxes (the individual words in the line)
+    #       wordbox.content = "__STRING_HERE__"
+    #       wordbox.position = ((421, 877), (452, 896))
+    #
+    #       ex) > print( wordbox )
+    #           >> "__STRING_HERE__" 50 1096 88 1553
+    #
     #   line.content is the whole text of the line
     #   line.position is the position of the whole line on the page (in pixels)
     #
@@ -203,15 +209,36 @@ class Img2StrResultParser:
     @staticmethod
     def convert_linebox_iterable_into_linebased_fmt(
         lineboxObjectIterable: Iterable[pyocr.builders.LineBox],
+        default_offset_top=0,
+        default_offset_left=0,
+        default_offset_bottom=0,
+        default_offset_right=0,
     ):
         result = []
         for lineboxObject in lineboxObjectIterable:
+            # lineboxObject.position = [ [top,left] , [bottom,right] ]
+            position_top = lineboxObject.position[0][0] + default_offset_top
+            position_left = lineboxObject.position[0][1] + default_offset_left
+            position_bottom = (
+                lineboxObject.position[1][1] + default_offset_bottom
+            )
+            position_right = (
+                lineboxObject.position[1][0] + default_offset_right
+            )
+
             result.append(
                 {
-                    "linePosition": lineboxObject.position,
+                    "linePosition": [
+                        position_top,
+                        position_left,
+                        position_bottom,
+                        position_right,
+                    ],  # bounding-box-like object : [ top, left, bottom, right ]
                     "content": " ".join(
                         map(
-                            lambda wordbox: wordbox.content,
+                            lambda wordbox: wordbox.content.encode(
+                                "cp932", "ignore"
+                            ).decode("cp932"),
                             lineboxObject.word_boxes,
                         )
                     ),
