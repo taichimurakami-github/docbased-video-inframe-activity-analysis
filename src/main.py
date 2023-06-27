@@ -11,6 +11,7 @@ from analyzer.image import (
     detect_imdiff_by_bgrvalue,
     detect_imdiff_by_saturation,
     generate_allzero_uint8_nparr,
+    detect_bgcolor,
 )
 
 data_base_dir = os.path.join(os.path.dirname(__file__), ".data")
@@ -91,18 +92,20 @@ def compare_2_imgs(img1src, img2src):
     #  ], <- len = 1920(num of pixels of row)
     # ]
 
-    img1_bgr = image.load(img1src)
-    img2_bgr = image.load(img2src)
+    img1_bgr = cv2.resize(cv2.imread(img1src), (960, 540))
+    img2_bgr = cv2.resize(cv2.imread(img2src), (960, 540))
+    # img2_bgr_original = cv2.resize()
+    detect_bgcolor(img1_bgr)
 
     img1_hsv = image.apply_bgr2hsv(img1_bgr)
     img2_hsv = image.apply_bgr2hsv(img2_bgr)
 
-    # img1 = image.apply__filter_gaussian_blur(image.apply_clahe(image.apply_bgr2gray(img1)))
-    # img2 = image.apply__filter_gaussian_blur(image.apply_clahe(image.apply_bgr2gray(img2)))
+    # img1 = image.apply_filter_gaussian_blur(image.apply_clahe(image.apply_bgr2gray(img1)))
+    # img2 = image.apply_filter_gaussian_blur(image.apply_clahe(image.apply_bgr2gray(img2)))
 
     # 1. 単純な画素差分検出
-    # result = image.get_absdiff(img1_bgr, img2_bgr)
-    # image.show(result, "absdiff_example")
+    result_imabsdiff = cv2.absdiff(img1_bgr, img2_bgr)
+    cv2.imshow("absdiff_example", result_imabsdiff)
 
     # 2. bgrベースの差分検出(with nose filter)
     # (result_diff_img_bgr, result_details) = detect_imdiff_by_bgrvalue(
@@ -113,6 +116,10 @@ def compare_2_imgs(img1src, img2src):
     # 3. hsvベースの差分検出
     (result_diff_img_hsv, result_details) = detect_imdiff_by_saturation(
         img1_hsv, img2_hsv
+    )
+    cv2.imshow(
+        "result_saturationbased_example",
+        cv2.cvtColor(result_diff_img_hsv, cv2.COLOR_HSV2RGB),
     )
     # image.show(
     #     image.apply_hsv2bgr(result_diff_img_hsv),
@@ -130,40 +137,88 @@ def compare_2_imgs(img1src, img2src):
     # )
     # image.show(img_filtered, "cropping_test_result")
 
-    tmp_path = os.path.join(os.path.dirname(__file__), ".data", "_temp.png")
-    image.save(
-        image.apply_hsv2bgr(result_diff_img_hsv),
-        tmp_path,
-    )
+    # tmp_path = os.path.join(os.path.dirname(__file__), ".data", "_temp.png")
+    # image.save(
+    #     # image.apply_hsv2bgr(result_diff_img_hsv),
+    #     image.apply_hsv2bgr(result_imabsdiff),
+    #     tmp_path,
+    # )
 
     # return
 
-    img_base = image.apply_bgr2gray(
-        image.apply_filter_gaussian_blur(image.load(tmp_path), (5, 5), 0)
-    )
+    # img_base = image.apply_bgr2gray(
+    #     image.apply_filter_gaussian_blur(image.load(tmp_path), (5, 5), 0)
+    # )
 
-    contours, hierarchy = cv2.findContours(
-        img_base,
-        cv2.RETR_TREE,
+    # img_base = cv2.threshold(
+    #     cv2.cvtColor(result_imabsdiff, cv2.COLOR_BGR2GRAY),
+    #     0,
+    #     255,
+    #     cv2.THRESH_BINARY,
+    # )
+
+    imabsdiff_gray = cv2.cvtColor(result_diff_img_hsv, cv2.COLOR_BGR2GRAY)
+    print(imabsdiff_gray)
+    _, imabsdiff_gray = cv2.threshold(
+        imabsdiff_gray, 1, 255, cv2.THRESH_BINARY
+    )
+    print(imabsdiff_gray)
+    # imabsdiff_gray = cv2.GaussianBlur(imabsdiff_gray, (5, 5), 0)
+    # cv2.imshow("gray", imabsdiff_gray)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
+
+    # print(imabsdiff_gray)
+    contours, _hierarchy = cv2.findContours(
+        imabsdiff_gray.copy(),
+        # result_imabsdiff,
+        cv2.RETR_EXTERNAL,
         cv2.CHAIN_APPROX_NONE,
     )
 
-    img_disp = image.apply_gray2bgr(img_base)
+    # img_disp = image.apply_gray2bgr(img_base)
+    # img_disp = image.apply_gray2bgr(result_imabsdiff)
+
+    # 切り抜いた画像を格納するリスト
+    cropped_images = []
+    img2_bgr_copy = img2_bgr.copy()
+
+    TH_VALID_WIDTH = 20
+    TH_VALID_HEIGHT = 20
+    TH_VALID_AREA_SIZE = TH_VALID_WIDTH * TH_VALID_HEIGHT
+    for contour in contours:
+        x, y, w, h = cv2.boundingRect(contour)
+        if (
+            w > TH_VALID_WIDTH
+            and h > TH_VALID_HEIGHT
+            and w * h > TH_VALID_AREA_SIZE
+        ):
+            cropped_image = img2_bgr_copy[y : y + h, x : x + w]  # 画像1から切り抜く
+            cropped_images.append(cropped_image)
+
+    # 5. 切り抜いた画像を表示する
+    for i, cropped_image in enumerate(cropped_images):
+        cv2.imshow(f"Cropped Image {i+1}", cropped_image)
+        # cv2.waitKey(0)
+        # cv2.destroyAllWindows()
 
     cv2.drawContours(
-        image=img_disp,
+        image=imabsdiff_gray.copy(),
         contours=contours,
         contourIdx=-1,
         color=(0, 0, 255),
         thickness=4,  # -1を指定すると塗りつぶしになる
-        hierarchy=hierarchy,
+        hierarchy=_hierarchy,
     )
+    cv2.imshow("draw_coutours_result", imabsdiff_gray)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
     # for contour in contours:
     #     for point in contour:
     #         cv2.circle(img_disp, point[0], 3, (0, 255, 0), -1)
 
-    image.show(img_disp, "cropping_test_result")
+    # image.show(img_disp, "cropping_test_result")
 
 
 # image = CV2ImageUtil()
@@ -180,8 +235,18 @@ def compare_2_imgs(img1src, img2src):
 
 
 compare_2_imgs(
-    # os.path.join(data_base_dir, "66.jpg"),
+    os.path.join(data_base_dir, "66.jpg"),
     # os.path.join(data_base_dir, "67.jpg"),
-    os.path.join(data_base_dir, "149.jpg"),
-    os.path.join(data_base_dir, "150.jpg"),
+    # os.path.join(data_base_dir, "77.jpg"),
+    # os.path.join(data_base_dir, "78.jpg"),
+    # os.path.join(data_base_dir, "106.jpg"),
+    # os.path.join(data_base_dir, "107.jpg"),
+    # os.path.join(data_base_dir, "108.jpg"),
+    # os.path.join(data_base_dir, "109.jpg"),
+    os.path.join(data_base_dir, "110.jpg"),
+    # os.path.join(data_base_dir, "149.jpg"),
+    # os.path.join(data_base_dir, "150.jpg"),
+    # os.path.join(data_base_dir, "307.jpg"),
+    # os.path.join(data_base_dir, "308.jpg"),
+    # os.path.join(data_base_dir, "309.jpg"),
 )
