@@ -5,6 +5,27 @@ import pyocr.builders
 from collections.abc import Iterable
 
 
+def detect_bgcolor(image: cv2.Mat):
+    # 1. 画像をカラーで読み込む
+    # image = cv2.imread("image.jpg")
+
+    # 2. 読み込んだ画像について、背景色を検出する
+    # 画像の最頻値を求める
+    pixels = np.float32(image.reshape(-1, 3))
+    n_colors = 1
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 200, 0.1)
+    _, labels, palette = cv2.kmeans(
+        pixels, n_colors, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS
+    )
+
+    # 最頻値を背景色として使用する
+    background_color = np.uint8(palette[0])
+
+    # 3. 検出した背景色のカラーコードを表示する
+    background_color_code = tuple(int(c) for c in background_color)
+    print("Background Color Code:", background_color_code)
+
+
 def generate_allzero_uint8_nparr(width: int, height: int):
     result = []
     for i_col in range(height):
@@ -20,7 +41,7 @@ def generate_allzero_uint8_nparr(width: int, height: int):
 def detect_imdiff_by_saturation(
     img1_hsv: cv2.Mat,
     img2_hsv: cv2.Mat,
-    TH_VALID_SATURATION_DIFF=5,
+    TH_VALID_SATURATION_DIFF=10,
     img_res=(1920, 1080),
 ):
     result_diff_img_hsv = generate_allzero_uint8_nparr(img_res[0], img_res[1])
