@@ -1,12 +1,7 @@
-import os
 import json
-from pprint import pprint
 import Levenshtein
 import difflib
-from pathlib import Path
 from enum import Enum, auto
-
-from .image import OcrTextExtractor
 
 
 class MATCHING_METHOD(Enum):

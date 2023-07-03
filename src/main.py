@@ -1,17 +1,15 @@
 import os
 import numpy as np
-import json
-from pprint import pprint
 from sklearn.cluster import KMeans
 import cv2
-from PIL import Image
 from utils.CV2VideoUtil import CV2VideoUtil
 from utils.CV2ImageUtil import CV2ImageUtil
+from analyzer.image.basics.ImcropAroundContours import (
+    ImcropAroundContours,
+)
+from analyzer.image.basics.get_bgcolor import get_bgcolor_by_kmeans
 from analyzer.image import (
-    detect_imdiff_by_bgrvalue,
     detect_imdiff_by_saturation,
-    generate_allzero_uint8_nparr,
-    detect_bgcolor,
 )
 
 data_base_dir = os.path.join(os.path.dirname(__file__), ".data")
@@ -66,6 +64,53 @@ def detect_and_draw_contours_by_kmeans(
     return img_filtered
 
 
+def crop_image_around_contour_as_square(src_img: cv2.Mat, contours: list):
+    cropped_images = []
+    img = src_img.copy()
+    TH_VALID_WIDTH = 35
+    TH_VALID_HEIGHT = 35
+    TH_VALID_AREA_SIZE = TH_VALID_WIDTH * TH_VALID_HEIGHT
+    for contour in contours:
+        x, y, w, h = cv2.boundingRect(contour)
+        if (
+            w > TH_VALID_WIDTH
+            and h > TH_VALID_HEIGHT
+            and w * h > TH_VALID_AREA_SIZE
+        ):
+            cropped_image = img[y : y + h, x : x + w]  # 画像1から切り抜く
+            cropped_images.append(cropped_image)
+
+    return cropped_images
+
+
+def crop_image_around_contour(src_img: cv2.Mat, contours: list):
+    src_img = src_img.copy()
+    cp_executor = ImcropAroundContours()
+
+    cropped_images = cp_executor.crop(contours, src_img)
+    return cropped_images
+
+
+def convert_to_transparent(image: cv2.Mat):
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2BGRA)
+
+    for row in image:
+        for pixel in row:
+            if pixel[0] == 0 and pixel[1] == 0 and pixel[2] == 0:
+                pixel[3] = 0
+            else:
+                pixel[3] = 1
+
+    return image
+
+    # black_pixels = np.all(image == [0, 0, 0], axis=2)
+    # color_pixels = np.all(image != [0, 0, 0], axis=2)
+    # image[black_pixels] = [0, 0, 0, 0]  # 黒色の画素を透明に変換
+    # image[color_pixels] = []
+
+    return image
+
+
 def compare_2_imgs(img1src, img2src):
     image = CV2ImageUtil()
 
@@ -92,10 +137,12 @@ def compare_2_imgs(img1src, img2src):
     #  ], <- len = 1920(num of pixels of row)
     # ]
 
-    img1_bgr = cv2.resize(cv2.imread(img1src), (960, 540))
-    img2_bgr = cv2.resize(cv2.imread(img2src), (960, 540))
+    # img1_bgr = cv2.resize(cv2.imread(img1src), (960, 540))
+    # img2_bgr = cv2.resize(cv2.imread(img2src), (960, 540))
+    img1_bgr = cv2.imread(img1src)
+    img2_bgr = cv2.imread(img2src)
     # img2_bgr_original = cv2.resize()
-    detect_bgcolor(img1_bgr)
+    bgcolor_rgb = get_bgcolor_by_kmeans(img1_bgr)
 
     img1_hsv = image.apply_bgr2hsv(img1_bgr)
     img2_hsv = image.apply_bgr2hsv(img2_bgr)
@@ -179,38 +226,48 @@ def compare_2_imgs(img1src, img2src):
     # img_disp = image.apply_gray2bgr(img_base)
     # img_disp = image.apply_gray2bgr(result_imabsdiff)
 
-    # 切り抜いた画像を格納するリスト
-    cropped_images = []
-    img2_bgr_copy = img2_bgr.copy()
-
-    TH_VALID_WIDTH = 20
-    TH_VALID_HEIGHT = 20
-    TH_VALID_AREA_SIZE = TH_VALID_WIDTH * TH_VALID_HEIGHT
-    for contour in contours:
-        x, y, w, h = cv2.boundingRect(contour)
-        if (
-            w > TH_VALID_WIDTH
-            and h > TH_VALID_HEIGHT
-            and w * h > TH_VALID_AREA_SIZE
-        ):
-            cropped_image = img2_bgr_copy[y : y + h, x : x + w]  # 画像1から切り抜く
-            cropped_images.append(cropped_image)
-
-    # 5. 切り抜いた画像を表示する
-    for i, cropped_image in enumerate(cropped_images):
-        cv2.imshow(f"Cropped Image {i+1}", cropped_image)
-        # cv2.waitKey(0)
-        # cv2.destroyAllWindows()
-
     cv2.drawContours(
         image=imabsdiff_gray.copy(),
         contours=contours,
         contourIdx=-1,
-        color=(0, 0, 255),
-        thickness=4,  # -1を指定すると塗りつぶしになる
+        # color=(0, 0, 255),
+        color=255,
+        thickness=-1,  # -1を指定すると塗りつぶしになる
         hierarchy=_hierarchy,
     )
     cv2.imshow("draw_coutours_result", imabsdiff_gray)
+
+    print(img2_bgr.shape)
+    print(imabsdiff_gray.shape)
+    im_bitwise_result = cv2.bitwise_and(
+        img2_bgr.copy(), cv2.cvtColor(imabsdiff_gray, cv2.COLOR_GRAY2BGR)
+    )
+    cv2.imshow("result_bitwise_and", im_bitwise_result)
+
+    # 切り抜いた画像を格納するリスト
+    cropped_images = crop_image_around_contour_as_square(
+        im_bitwise_result, contours
+    )
+    # cropped_images = crop_image_around_contour(
+    #     src_img=img2_bgr, contours=contours
+    # )
+
+    # 5. 切り抜いた画像を表示する
+    print(cropped_images.__len__())
+    for i, cropped_image in enumerate(cropped_images):
+        cv2.imshow(f"Cropped Image {i+1}", cropped_image)
+
+        cropped_image_with_alpha = convert_to_transparent(cropped_image)
+        cv2.imshow(
+            f"Cropped Image with alpha: {i+1}", cropped_image_with_alpha
+        )
+        # cv2.imwrite(
+        #     os.path.join(data_base_dir, f"cropped_{i+1}.png"),
+        #     cropped_image_with_alpha,
+        # )
+        # cv2.waitKey(0)
+        # cv2.destroyAllWindows()
+
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
@@ -235,7 +292,7 @@ def compare_2_imgs(img1src, img2src):
 
 
 compare_2_imgs(
-    os.path.join(data_base_dir, "66.jpg"),
+    # os.path.join(data_base_dir, "66.jpg"),
     # os.path.join(data_base_dir, "67.jpg"),
     # os.path.join(data_base_dir, "77.jpg"),
     # os.path.join(data_base_dir, "78.jpg"),
@@ -243,9 +300,9 @@ compare_2_imgs(
     # os.path.join(data_base_dir, "107.jpg"),
     # os.path.join(data_base_dir, "108.jpg"),
     # os.path.join(data_base_dir, "109.jpg"),
-    os.path.join(data_base_dir, "110.jpg"),
-    # os.path.join(data_base_dir, "149.jpg"),
-    # os.path.join(data_base_dir, "150.jpg"),
+    # os.path.join(data_base_dir, "110.jpg"),
+    os.path.join(data_base_dir, "149.jpg"),
+    os.path.join(data_base_dir, "150.jpg"),
     # os.path.join(data_base_dir, "307.jpg"),
     # os.path.join(data_base_dir, "308.jpg"),
     # os.path.join(data_base_dir, "309.jpg"),

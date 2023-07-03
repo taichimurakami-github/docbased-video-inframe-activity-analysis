@@ -1,15 +1,16 @@
 import cv2
 import os
 import json
-from PIL import Image
 from pprint import pprint
 from enum import Enum, auto
 from utils.CV2VideoUtil import CV2VideoUtil
 from utils.CV2ImageUtil import CV2ImageUtil
-from analyzer.document import MatchingEngine, MATCHING_METHOD
-from analyzer.image import (
+from analyzer.document.MatchingEngine import MatchingEngine, MATCHING_METHOD
+from analyzer.image.OcrTextExtractor import (
     OcrTextExtractor,
-    Img2StrResultParser,
+)
+from analyzer.image.Img2StrResultParser import Img2StrResultParser
+from analyzer.image.detect_imdiff_by_saturation import (
     detect_imdiff_by_saturation,
 )
 from utils.Benchmark import Benchmark

@@ -1,11 +1,10 @@
 # coding: utf-8
-from tkinter import Image
 import numpy as np
 import copy
 import cv2
 
 
-def pic_clipping(path_list, pram_list, transparent):
+def imcrop_square_around_contour(path_list, pram_list, transparent):
     print("pic_clipping")
     # 画像の読み込み
     img = cv2.imread(path_list[0])
@@ -54,4 +53,5 @@ def pic_clipping(path_list, pram_list, transparent):
             cv2.imwrite(dst_path + "\\picture" + str(i) + ".png", img_bool)
         else:
             cv2.imwrite(dst_path + "\\picture" + str(i) + ".png", crop_img)
+
     cv2.imwrite(dst_path + "\\detection_parts.png", output)
