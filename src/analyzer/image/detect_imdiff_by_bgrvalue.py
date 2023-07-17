@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
-from basics.generate_allzero_uint8_nparr import generate_allzero_uint8_nparr
+from .basics.generate_allzero_uint8_nparr import generate_allzero_uint8_nparr
+from .detect_imdiff_by_saturation import detect_imdiff_by_saturation
 
 
 def detect_imdiff_by_bgrvalue(
@@ -42,3 +43,25 @@ def detect_imdiff_by_bgrvalue(
                     )
 
     return np.array(result_diff_img_bgr, dtype="uint8"), result_details
+
+
+def count_diff_pixel(img1_bgr, img2_bgr):
+    im_absdiff = cv2.absdiff(img1_bgr.copy(), img2_bgr.copy())
+    cv2.imshow("abs", im_absdiff)
+    img, r = detect_imdiff_by_saturation(
+        cv2.cvtColor(img1_bgr.copy(), cv2.COLOR_BGR2HSV),
+        cv2.cvtColor(img2_bgr.copy(), cv2.COLOR_BGR2HSV),
+    )
+    print(r)
+    _, im_absdiff_bin = cv2.threshold(
+        cv2.cvtColor(im_absdiff, cv2.COLOR_BGR2GRAY),
+        30,
+        255,
+        cv2.THRESH_BINARY,
+    )
+
+    cv2.imshow("test", im_absdiff_bin)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+    return np.sum(im_absdiff_bin > 0)

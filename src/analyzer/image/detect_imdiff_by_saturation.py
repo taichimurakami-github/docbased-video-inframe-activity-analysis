@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from basics.generate_allzero_uint8_nparr import generate_allzero_uint8_nparr
+from .basics.generate_allzero_uint8_nparr import generate_allzero_uint8_nparr
 
 
 def detect_imdiff_by_saturation(

@@ -2,6 +2,9 @@
 import numpy as np
 import copy
 import cv2
+from .ImcropAroundContours import (
+    ImcropAroundContours,
+)
 
 
 def imcrop_square_around_contour(path_list, pram_list, transparent):
@@ -55,3 +58,54 @@ def imcrop_square_around_contour(path_list, pram_list, transparent):
             cv2.imwrite(dst_path + "\\picture" + str(i) + ".png", crop_img)
 
     cv2.imwrite(dst_path + "\\detection_parts.png", output)
+
+
+# imgの構造
+# [ <- len = 1080(num of pixels of column)
+#  [
+#    [255,255,255] <- depends on colorspace (ex: [b,g,r], [h,s,v])
+#    [255,255,255]
+#    ...
+#    [255,255,255]
+#  ], <- len = 1920(num of pixels of row)
+#  [
+#    [255,255,255]
+#    [255,255,255]
+#    ...
+#    [255,255,255]
+#  ], <- len = 1920(num of pixels of row)
+#  ...
+#  [
+#    [255,255,255]
+#    [255,255,255]
+#    ...
+#    [255,255,255]
+#  ], <- len = 1920(num of pixels of row)
+# ]
+def crop_around_contour_as_square(src_img: cv2.Mat, contours: list):
+    cropped_images = []
+    cropped_immeta = []
+    img = src_img.copy()
+    TH_VALID_WIDTH = 35
+    TH_VALID_HEIGHT = 35
+    TH_VALID_AREA_SIZE = TH_VALID_WIDTH * TH_VALID_HEIGHT
+    for contour in contours:
+        x, y, w, h = cv2.boundingRect(contour)
+        if (
+            w > TH_VALID_WIDTH
+            and h > TH_VALID_HEIGHT
+            and w * h > TH_VALID_AREA_SIZE
+        ):
+            cropped_image = img[y : y + h, x : x + w]  # 画像1から切り抜く
+            cropped_images.append(cropped_image)
+            cropped_immeta.append((x, y, w, h))
+
+    return cropped_images, cropped_immeta
+
+
+def crop_around_contour(src_img: cv2.Mat, contours: list):
+    src_img = src_img.copy()
+    cp_executor = ImcropAroundContours()
+
+    cropped_images = cp_executor.crop(contours, src_img)
+    return cropped_images
